@@ -1,0 +1,469 @@
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
+import 'dart:io' show Platform;
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import '../models/worker_model.dart';
+import '../models/washing_service_model.dart';
+import '../models/type_washing_service_model.dart';
+
+class DatabaseService {
+  static final DatabaseService _instance = DatabaseService._internal();
+  factory DatabaseService() => _instance;
+  DatabaseService._internal();
+
+  static Database? _database;
+
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+    _database = await _initDatabase();
+    return _database!;
+  }
+
+  Future<Database> _initDatabase() async {
+    // Initialize FFI for desktop platforms
+    if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
+      sqfliteFfiInit();
+      databaseFactory = databaseFactoryFfi;
+    }
+
+    final databasesPath = await getDatabasesPath();
+    final path = join(databasesPath, 'lavadero_motos.db');
+
+    return await openDatabase(
+      path,
+      version: 1,
+      onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
+      onConfigure: _onConfigure,
+    );
+  }
+
+  Future<void> _onConfigure(Database db) async {
+    // Enable foreign keys
+    await db.execute('PRAGMA foreign_keys = ON');
+  }
+
+  Future<void> _onCreate(Database db, int version) async {
+    // Workers table
+    await db.execute('''
+      CREATE TABLE workers (
+        id_worker INTEGER PRIMARY KEY,
+        nickname TEXT NOT NULL,
+        price_worker REAL NOT NULL,
+        synced INTEGER DEFAULT 1,
+        updated_at TEXT
+      )
+    ''');
+
+    // Type washing services table
+    await db.execute('''
+      CREATE TABLE type_washing_services (
+        id INTEGER PRIMARY KEY,
+        detail TEXT NOT NULL,
+        price_service REAL NOT NULL,
+        synced INTEGER DEFAULT 1,
+        updated_at TEXT
+      )
+    ''');
+
+    // Washing services table
+    await db.execute('''
+      CREATE TABLE washing_services (
+        id_service INTEGER PRIMARY KEY,
+        date_service TEXT NOT NULL,
+        worker_id INTEGER NOT NULL,
+        type_service_id INTEGER NOT NULL,
+        synced INTEGER DEFAULT 1,
+        updated_at TEXT,
+        FOREIGN KEY (worker_id) REFERENCES workers(id_worker) ON UPDATE CASCADE ON DELETE CASCADE,
+        FOREIGN KEY (type_service_id) REFERENCES type_washing_services(id) ON UPDATE CASCADE ON DELETE CASCADE
+      )
+    ''');
+
+    // Pending operations table
+    await db.execute('''
+      CREATE TABLE pending_operations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        operation_type TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id INTEGER,
+        payload TEXT,
+        created_at TEXT NOT NULL,
+        retry_count INTEGER DEFAULT 0
+      )
+    ''');
+
+    // Create indexes for better performance
+    await db.execute('CREATE INDEX idx_workers_synced ON workers(synced)');
+    await db.execute(
+      'CREATE INDEX idx_services_synced ON washing_services(synced)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_types_synced ON type_washing_services(synced)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_pending_ops_created ON pending_operations(created_at)',
+    );
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    // Handle database migrations here in the future
+  }
+
+  // WORKERS CRUD
+  Future<int> insertWorker(Worker worker, {bool synced = true}) async {
+    final db = await database;
+    return await db.insert('workers', {
+      'id_worker': worker.idWorker,
+      'nickname': worker.nickname,
+      'price_worker': worker.priceWorker,
+      'synced': synced ? 1 : 0,
+      'updated_at': DateTime.now().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<List<Worker>> getWorkers() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('workers');
+
+    return List.generate(maps.length, (i) {
+      return Worker(
+        idWorker: maps[i]['id_worker'] as int,
+        nickname: maps[i]['nickname'] as String,
+        priceWorker: maps[i]['price_worker'] as double,
+      );
+    });
+  }
+
+  Future<Worker?> getWorkerById(int id) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'workers',
+      where: 'id_worker = ?',
+      whereArgs: [id],
+    );
+
+    if (maps.isEmpty) return null;
+
+    return Worker(
+      idWorker: maps[0]['id_worker'] as int,
+      nickname: maps[0]['nickname'] as String,
+      priceWorker: maps[0]['price_worker'] as double,
+    );
+  }
+
+  Future<int> updateWorker(Worker worker, {bool synced = true}) async {
+    final db = await database;
+    return await db.update(
+      'workers',
+      {
+        'nickname': worker.nickname,
+        'price_worker': worker.priceWorker,
+        'synced': synced ? 1 : 0,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      where: 'id_worker = ?',
+      whereArgs: [worker.idWorker],
+    );
+  }
+
+  // Update Worker ID (for sync)
+  Future<void> updateWorkerId(int oldId, int newId) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      // Disable foreign keys temporarily if needed, but ON UPDATE CASCADE should handle it
+      // However, SQLite support for ON UPDATE CASCADE needs to be enabled
+
+      // Update the worker ID
+      await txn.rawUpdate(
+        'UPDATE workers SET id_worker = ? WHERE id_worker = ?',
+        [newId, oldId],
+      );
+    });
+  }
+
+  Future<int> deleteWorker(int id) async {
+    final db = await database;
+    return await db.delete('workers', where: 'id_worker = ?', whereArgs: [id]);
+  }
+
+  // TYPE WASHING SERVICES CRUD
+  Future<int> insertServiceType(
+    TypeWashingService type, {
+    bool synced = true,
+  }) async {
+    final db = await database;
+    return await db.insert('type_washing_services', {
+      'id': type.id,
+      'detail': type.detail,
+      'price_service': type.priceService,
+      'synced': synced ? 1 : 0,
+      'updated_at': DateTime.now().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<List<TypeWashingService>> getServiceTypes() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'type_washing_services',
+    );
+
+    return List.generate(maps.length, (i) {
+      return TypeWashingService(
+        id: maps[i]['id'] as int,
+        detail: maps[i]['detail'] as String,
+        priceService: maps[i]['price_service'] as double,
+      );
+    });
+  }
+
+  Future<TypeWashingService?> getServiceTypeById(int id) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'type_washing_services',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+
+    if (maps.isEmpty) return null;
+
+    return TypeWashingService(
+      id: maps[0]['id'] as int,
+      detail: maps[0]['detail'] as String,
+      priceService: maps[0]['price_service'] as double,
+    );
+  }
+
+  Future<int> updateServiceType(
+    TypeWashingService type, {
+    bool synced = true,
+  }) async {
+    final db = await database;
+    return await db.update(
+      'type_washing_services',
+      {
+        'detail': type.detail,
+        'price_service': type.priceService,
+        'synced': synced ? 1 : 0,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [type.id],
+    );
+  }
+
+  // Update Service Type ID (for sync)
+  Future<void> updateServiceTypeId(int oldId, int newId) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.rawUpdate(
+        'UPDATE type_washing_services SET id = ? WHERE id = ?',
+        [newId, oldId],
+      );
+    });
+  }
+
+  Future<int> deleteServiceType(int id) async {
+    final db = await database;
+    return await db.delete(
+      'type_washing_services',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // WASHING SERVICES CRUD
+  Future<int> insertService(
+    WashingService service, {
+    bool synced = true,
+  }) async {
+    final db = await database;
+    return await db.insert('washing_services', {
+      'id_service': service.idService,
+      'date_service': service.dateService.toIso8601String(),
+      'worker_id': service.worker.idWorker,
+      'type_service_id': service.typeService.id,
+      'synced': synced ? 1 : 0,
+      'updated_at': DateTime.now().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<List<WashingService>> getServices({int? limit, int? offset}) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.rawQuery('''
+      SELECT 
+        ws.id_service,
+        ws.date_service,
+        w.id_worker,
+        w.nickname,
+        w.price_worker,
+        t.id as type_id,
+        t.detail,
+        t.price_service
+      FROM washing_services ws
+      INNER JOIN workers w ON ws.worker_id = w.id_worker
+      INNER JOIN type_washing_services t ON ws.type_service_id = t.id
+      ORDER BY ws.date_service DESC
+      ${limit != null ? 'LIMIT $limit' : ''}
+      ${offset != null ? 'OFFSET $offset' : ''}
+    ''');
+
+    return List.generate(maps.length, (i) {
+      return WashingService(
+        idService: maps[i]['id_service'] as int,
+        dateService: DateTime.parse(maps[i]['date_service'] as String),
+        worker: Worker(
+          idWorker: maps[i]['id_worker'] as int,
+          nickname: maps[i]['nickname'] as String,
+          priceWorker: maps[i]['price_worker'] as double,
+        ),
+        typeService: TypeWashingService(
+          id: maps[i]['type_id'] as int,
+          detail: maps[i]['detail'] as String,
+          priceService: maps[i]['price_service'] as double,
+        ),
+      );
+    });
+  }
+
+  Future<WashingService?> getServiceById(int id) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.rawQuery(
+      '''
+      SELECT 
+        ws.id_service,
+        ws.date_service,
+        w.id_worker,
+        w.nickname,
+        w.price_worker,
+        t.id as type_id,
+        t.detail,
+        t.price_service
+      FROM washing_services ws
+      INNER JOIN workers w ON ws.worker_id = w.id_worker
+      INNER JOIN type_washing_services t ON ws.type_service_id = t.id
+      WHERE ws.id_service = ?
+    ''',
+      [id],
+    );
+
+    if (maps.isEmpty) return null;
+
+    return WashingService(
+      idService: maps[0]['id_service'] as int,
+      dateService: DateTime.parse(maps[0]['date_service'] as String),
+      worker: Worker(
+        idWorker: maps[0]['id_worker'] as int,
+        nickname: maps[0]['nickname'] as String,
+        priceWorker: maps[0]['price_worker'] as double,
+      ),
+      typeService: TypeWashingService(
+        id: maps[0]['type_id'] as int,
+        detail: maps[0]['detail'] as String,
+        priceService: maps[0]['price_service'] as double,
+      ),
+    );
+  }
+
+  Future<int> updateService(
+    WashingService service, {
+    bool synced = true,
+  }) async {
+    final db = await database;
+    return await db.update(
+      'washing_services',
+      {
+        'date_service': service.dateService.toIso8601String(),
+        'worker_id': service.worker.idWorker,
+        'type_service_id': service.typeService.id,
+        'synced': synced ? 1 : 0,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      where: 'id_service = ?',
+      whereArgs: [service.idService],
+    );
+  }
+
+  // Update Service ID (for sync)
+  Future<void> updateServiceId(int oldId, int newId) async {
+    final db = await database;
+    await db.rawUpdate(
+      'UPDATE washing_services SET id_service = ? WHERE id_service = ?',
+      [newId, oldId],
+    );
+  }
+
+  Future<int> deleteService(int id) async {
+    final db = await database;
+    return await db.delete(
+      'washing_services',
+      where: 'id_service = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // PENDING OPERATIONS
+  Future<int> addPendingOperation({
+    required String operationType,
+    required String entityType,
+    int? entityId,
+    String? payload,
+  }) async {
+    final db = await database;
+    return await db.insert('pending_operations', {
+      'operation_type': operationType,
+      'entity_type': entityType,
+      'entity_id': entityId,
+      'payload': payload,
+      'created_at': DateTime.now().toIso8601String(),
+      'retry_count': 0,
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingOperations() async {
+    final db = await database;
+    return await db.query('pending_operations', orderBy: 'created_at ASC');
+  }
+
+  Future<int> deletePendingOperation(int id) async {
+    final db = await database;
+    return await db.delete(
+      'pending_operations',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<int> incrementRetryCount(int id) async {
+    final db = await database;
+    return await db.rawUpdate(
+      'UPDATE pending_operations SET retry_count = retry_count + 1 WHERE id = ?',
+      [id],
+    );
+  }
+
+  // UTILITY METHODS
+  Future<void> clearAllData() async {
+    final db = await database;
+    await db.delete('workers');
+    await db.delete('type_washing_services');
+    await db.delete('washing_services');
+    await db.delete('pending_operations');
+  }
+
+  Future<int> getUnsyncedCount() async {
+    final db = await database;
+    final result = await db.rawQuery('''
+      SELECT 
+        (SELECT COUNT(*) FROM workers WHERE synced = 0) +
+        (SELECT COUNT(*) FROM type_washing_services WHERE synced = 0) +
+        (SELECT COUNT(*) FROM washing_services WHERE synced = 0) as total
+    ''');
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  Future<void> close() async {
+    final db = await database;
+    await db.close();
+  }
+}
