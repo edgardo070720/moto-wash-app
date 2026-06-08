@@ -248,6 +248,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           color: AppTheme.darkBlue,
           onTap: () => Navigator.pushNamed(context, AppRoutes.serviceTypeForm),
         ),
+        _buildActionCard(
+          title: 'Liquidaciones',
+          subtitle: 'Gestionar liquidaciones de trabajadores',
+          icon: Icons.receipt_long,
+          color: Colors.green,
+          onTap: () => Navigator.pushNamed(context, AppRoutes.liquidations),
+        ),
       ],
     );
   }

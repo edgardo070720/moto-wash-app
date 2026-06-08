@@ -14,4 +14,10 @@ class ApiEndpoints {
 
   // Dashboard endpoints
   static const String dashboardStats = '/dashboard/stats';
+
+  // Liquidation endpoints
+  static const String liquidations = '/liquidation';
+  static String liquidationById(String id) => '/liquidation/$id';
+  static String liquidationsByWorker(String workerId) =>
+      '/liquidation/worker/$workerId';
 }

@@ -31,7 +31,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
   bool _isLoadingMore = false;
   bool _hasMore = true;
   int _page = 1;
-  static const int _limit = 10;
+  static const int _limit = 50;
   String? _errorMessage;
   List<WashingService> _services = [];
 
@@ -269,55 +269,6 @@ class _ServicesScreenState extends State<ServicesScreen> {
     }
   }
 
-  void _showTotalDialog() {
-    double total = 0;
-    for (var service in _services) {
-      total += service.totalPrice;
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Resumen Total'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.monetization_on,
-              size: 48,
-              color: AppTheme.successColor,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Total de servicios cargados:',
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '\$${total.toStringAsFixed(0)}',
-              style: const TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '(${_services.length} servicios)',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cerrar'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -338,13 +289,6 @@ class _ServicesScreenState extends State<ServicesScreen> {
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          FloatingActionButton(
-            heroTag: 'btnTotal',
-            onPressed: _showTotalDialog,
-            backgroundColor: AppTheme.successColor,
-            child: const Icon(Icons.attach_money),
-          ),
-          const SizedBox(height: 16),
           FloatingActionButton(
             heroTag: 'btnAdd',
             onPressed: () => _navigateToForm(),

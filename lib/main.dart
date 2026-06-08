@@ -6,9 +6,12 @@ import 'navigation/app_routes.dart';
 import 'views/screens/workers/worker_form_screen.dart';
 import 'views/screens/services/service_form_screen.dart';
 import 'views/screens/service_types/service_type_form_screen.dart';
+import 'views/screens/liquidations/liquidations_screen.dart';
+import 'views/screens/liquidations/liquidation_form_screen.dart';
 import 'models/worker_model.dart';
 import 'models/washing_service_model.dart';
 import 'models/type_washing_service_model.dart';
+import 'models/liquidation_model.dart';
 import 'services/connectivity_service.dart';
 import 'services/sync_service.dart';
 
@@ -55,6 +58,17 @@ class LavoBarApp extends StatelessWidget {
             final serviceType = settings.arguments as TypeWashingService?;
             return MaterialPageRoute(
               builder: (_) => ServiceTypeFormScreen(serviceType: serviceType),
+            );
+
+          case AppRoutes.liquidations:
+            return MaterialPageRoute(
+              builder: (_) => const LiquidationsScreen(),
+            );
+
+          case AppRoutes.liquidationForm:
+            final liquidation = settings.arguments as Liquidation?;
+            return MaterialPageRoute(
+              builder: (_) => LiquidationFormScreen(liquidation: liquidation),
             );
 
           default:

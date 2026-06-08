@@ -284,20 +284,6 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  // Time picker
-                  InkWell(
-                    onTap: _selectTime,
-                    child: InputDecorator(
-                      decoration: const InputDecoration(
-                        labelText: 'Hora',
-                        prefixIcon: Icon(Icons.access_time),
-                      ),
-                      child: Text(_selectedTime.format(context)),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
                   // Price summary
                   if (_selectedWorker != null && _selectedServiceType != null)
                     Container(
@@ -320,18 +306,6 @@ class _ServiceFormScreenState extends State<ServiceFormScreen> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text('Trabajador:'),
-                              Text(
-                                NumberFormat.currency(
-                                  symbol: '\$',
-                                  decimalDigits: 0,
-                                ).format(_selectedWorker!.priceWorker),
-                              ),
-                            ],
-                          ),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [

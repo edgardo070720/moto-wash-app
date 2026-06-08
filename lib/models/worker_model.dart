@@ -2,11 +2,13 @@ class Worker {
   final int idWorker;
   final String nickname;
   final double priceWorker;
+  final bool state;
 
   Worker({
     required this.idWorker,
     required this.nickname,
     required this.priceWorker,
+    required this.state,
   });
 
   // Business logic method from class diagram
@@ -20,6 +22,7 @@ class Worker {
       idWorker: json['idWorker'] ?? json['id'] ?? json['id_worker'] ?? 0,
       nickname: json['nickname'] ?? '',
       priceWorker: (json['priceWorker'] ?? 0).toDouble(),
+      state: json['state'] ?? true,
     );
   }
 
@@ -28,15 +31,22 @@ class Worker {
       'idWorker': idWorker,
       'nickname': nickname,
       'priceWorker': priceWorker,
+      'state': state,
     };
   }
 
   // Copy with method for updates
-  Worker copyWith({int? idWorker, String? nickname, double? priceWorker}) {
+  Worker copyWith({
+    int? idWorker,
+    String? nickname,
+    double? priceWorker,
+    bool? state,
+  }) {
     return Worker(
       idWorker: idWorker ?? this.idWorker,
       nickname: nickname ?? this.nickname,
       priceWorker: priceWorker ?? this.priceWorker,
+      state: state ?? this.state,
     );
   }
 

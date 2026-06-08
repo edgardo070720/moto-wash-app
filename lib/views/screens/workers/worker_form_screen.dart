@@ -48,7 +48,8 @@ class _WorkerFormScreenState extends State<WorkerFormScreen> {
           ? widget.worker!.idWorker
           : -DateTime.now().millisecondsSinceEpoch, // Temp ID for offline
       nickname: _nicknameController.text.trim(),
-      priceWorker: 0.0, // Default value since field is removed
+      priceWorker: 0.0,
+      state: true, // Default value since field is removed
     );
 
     final response = _isEditing

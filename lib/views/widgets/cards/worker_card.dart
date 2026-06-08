@@ -19,7 +19,10 @@ class WorkerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 0);
+    final currencyFormat = NumberFormat.currency(
+      symbol: '\$',
+      decimalDigits: 0,
+    );
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -38,14 +41,10 @@ class WorkerCard extends StatelessWidget {
                   gradient: AppTheme.primaryGradient,
                   borderRadius: BorderRadius.circular(28),
                 ),
-                child: const Icon(
-                  Icons.person,
-                  color: Colors.white,
-                  size: 32,
-                ),
+                child: const Icon(Icons.person, color: Colors.white, size: 32),
               ),
               const SizedBox(width: 16),
-              
+
               // Worker info
               Expanded(
                 child: Column(
@@ -59,28 +58,10 @@ class WorkerCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.attach_money,
-                          size: 16,
-                          color: AppTheme.successColor,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          currencyFormat.format(worker.priceWorker),
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppTheme.textSecondary,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
-              
+
               // Actions
               if (onEdit != null || onDelete != null)
                 PopupMenuButton<String>(
@@ -110,7 +91,10 @@ class WorkerCard extends StatelessWidget {
                           children: [
                             Icon(Icons.delete, size: 20, color: Colors.red),
                             SizedBox(width: 8),
-                            Text('Eliminar', style: TextStyle(color: Colors.red)),
+                            Text(
+                              'Eliminar',
+                              style: TextStyle(color: Colors.red),
+                            ),
                           ],
                         ),
                       ),

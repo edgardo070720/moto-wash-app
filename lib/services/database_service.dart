@@ -5,6 +5,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import '../models/worker_model.dart';
 import '../models/washing_service_model.dart';
 import '../models/type_washing_service_model.dart';
+import '../models/liquidation_model.dart';
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
@@ -31,7 +32,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 3,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: _onConfigure,
@@ -80,6 +81,21 @@ class DatabaseService {
       )
     ''');
 
+    // Liquidations table
+    await db.execute('''
+      CREATE TABLE liquidations (
+        id INTEGER PRIMARY KEY,
+        date_liquidation TEXT NOT NULL,
+        total_liquidation REAL NOT NULL,
+        deductible REAL NOT NULL,
+        tip REAL DEFAULT 0.0,
+        worker_id INTEGER NOT NULL,
+        synced INTEGER DEFAULT 1,
+        updated_at TEXT,
+        FOREIGN KEY (worker_id) REFERENCES workers(id_worker) ON UPDATE CASCADE ON DELETE CASCADE
+      )
+    ''');
+
     // Pending operations table
     await db.execute('''
       CREATE TABLE pending_operations (
@@ -102,12 +118,39 @@ class DatabaseService {
       'CREATE INDEX idx_types_synced ON type_washing_services(synced)',
     );
     await db.execute(
+      'CREATE INDEX idx_liquidations_synced ON liquidations(synced)',
+    );
+    await db.execute(
       'CREATE INDEX idx_pending_ops_created ON pending_operations(created_at)',
     );
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Handle database migrations here in the future
+    if (oldVersion < 2) {
+      // Add liquidations table for version 2
+      await db.execute('''
+        CREATE TABLE liquidations (
+          id INTEGER PRIMARY KEY,
+          date_liquidation TEXT NOT NULL,
+          total_liquidation REAL NOT NULL,
+          deductible REAL NOT NULL,
+          tip REAL DEFAULT 0.0,
+          worker_id INTEGER NOT NULL,
+          synced INTEGER DEFAULT 1,
+          updated_at TEXT,
+          FOREIGN KEY (worker_id) REFERENCES workers(id_worker) ON UPDATE CASCADE ON DELETE CASCADE
+        )
+      ''');
+      await db.execute(
+        'CREATE INDEX idx_liquidations_synced ON liquidations(synced)',
+      );
+    }
+    if (oldVersion < 3) {
+      // Add tip column for version 3
+      await db.execute(
+        'ALTER TABLE liquidations ADD COLUMN tip REAL DEFAULT 0.0',
+      );
+    }
   }
 
   // WORKERS CRUD
@@ -131,6 +174,7 @@ class DatabaseService {
         idWorker: maps[i]['id_worker'] as int,
         nickname: maps[i]['nickname'] as String,
         priceWorker: maps[i]['price_worker'] as double,
+        state: maps[i]['state'] as bool,
       );
     });
   }
@@ -149,6 +193,7 @@ class DatabaseService {
       idWorker: maps[0]['id_worker'] as int,
       nickname: maps[0]['nickname'] as String,
       priceWorker: maps[0]['price_worker'] as double,
+      state: maps[0]['state'] as bool,
     );
   }
 
@@ -316,6 +361,7 @@ class DatabaseService {
           idWorker: maps[i]['id_worker'] as int,
           nickname: maps[i]['nickname'] as String,
           priceWorker: maps[i]['price_worker'] as double,
+          state: maps[i]['state'] as bool,
         ),
         typeService: TypeWashingService(
           id: maps[i]['type_id'] as int,
@@ -356,6 +402,7 @@ class DatabaseService {
         idWorker: maps[0]['id_worker'] as int,
         nickname: maps[0]['nickname'] as String,
         priceWorker: maps[0]['price_worker'] as double,
+        state: maps[0]['state'],
       ),
       typeService: TypeWashingService(
         id: maps[0]['type_id'] as int,
@@ -400,6 +447,174 @@ class DatabaseService {
       where: 'id_service = ?',
       whereArgs: [id],
     );
+  }
+
+  // LIQUIDATIONS CRUD
+  Future<int> insertLiquidation(
+    Liquidation liquidation, {
+    bool synced = true,
+  }) async {
+    final db = await database;
+    return await db.insert('liquidations', {
+      'id': liquidation.id,
+      'date_liquidation': liquidation.dateLiquidation
+          .toIso8601String()
+          .split('T')
+          .first,
+      'total_liquidation': liquidation.totalLiquidation,
+      'deductible': liquidation.deductible,
+      'tip': liquidation.tip,
+      'worker_id': liquidation.worker.idWorker,
+      'synced': synced ? 1 : 0,
+      'updated_at': DateTime.now().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<List<Liquidation>> getLiquidations() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.rawQuery('''
+      SELECT 
+        l.id,
+        l.date_liquidation,
+        l.total_liquidation,
+        l.deductible,
+        l.tip,
+        w.id_worker,
+        w.nickname,
+        w.price_worker
+      FROM liquidations l
+      INNER JOIN workers w ON l.worker_id = w.id_worker
+      ORDER BY l.date_liquidation DESC
+    ''');
+
+    return List.generate(maps.length, (i) {
+      return Liquidation(
+        id: maps[i]['id'] as int,
+        dateLiquidation: DateTime.parse(maps[i]['date_liquidation'] as String),
+        totalLiquidation: maps[i]['total_liquidation'] as double,
+        deductible: maps[i]['deductible'] as double,
+        tip: (maps[i]['tip'] ?? 0.0) as double,
+        worker: Worker(
+          idWorker: maps[i]['id_worker'] as int,
+          nickname: maps[i]['nickname'] as String,
+          priceWorker: maps[i]['price_worker'] as double,
+          state: maps[i]['state'] as bool,
+        ),
+      );
+    });
+  }
+
+  Future<List<Liquidation>> getLiquidationsByWorker(int workerId) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.rawQuery(
+      '''
+      SELECT 
+        l.id,
+        l.date_liquidation,
+        l.total_liquidation,
+        l.deductible,
+        l.tip,
+        w.id_worker,
+        w.nickname,
+        w.price_worker
+      FROM liquidations l
+      INNER JOIN workers w ON l.worker_id = w.id_worker
+      WHERE l.worker_id = ?
+      ORDER BY l.date_liquidation DESC
+    ''',
+      [workerId],
+    );
+
+    return List.generate(maps.length, (i) {
+      return Liquidation(
+        id: maps[i]['id'] as int,
+        dateLiquidation: DateTime.parse(maps[i]['date_liquidation'] as String),
+        totalLiquidation: maps[i]['total_liquidation'] as double,
+        deductible: maps[i]['deductible'] as double,
+        tip: (maps[i]['tip'] ?? 0.0) as double,
+        worker: Worker(
+          idWorker: maps[i]['id_worker'] as int,
+          nickname: maps[i]['nickname'] as String,
+          priceWorker: maps[i]['price_worker'] as double,
+          state: maps[i]['state'] as bool,
+        ),
+      );
+    });
+  }
+
+  Future<Liquidation?> getLiquidationById(int id) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.rawQuery(
+      '''
+      SELECT 
+        l.id,
+        l.date_liquidation,
+        l.total_liquidation,
+        l.deductible,
+        l.tip,
+        w.id_worker,
+        w.nickname,
+        w.price_worker
+      FROM liquidations l
+      INNER JOIN workers w ON l.worker_id = w.id_worker
+      WHERE l.id = ?
+    ''',
+      [id],
+    );
+
+    if (maps.isEmpty) return null;
+
+    return Liquidation(
+      id: maps[0]['id'] as int,
+      dateLiquidation: DateTime.parse(maps[0]['date_liquidation'] as String),
+      totalLiquidation: maps[0]['total_liquidation'] as double,
+      deductible: maps[0]['deductible'] as double,
+      tip: (maps[0]['tip'] ?? 0.0) as double,
+      worker: Worker(
+        idWorker: maps[0]['id_worker'] as int,
+        nickname: maps[0]['nickname'] as String,
+        priceWorker: maps[0]['price_worker'] as double,
+        state: maps[0]['state'] as bool,
+      ),
+    );
+  }
+
+  Future<int> updateLiquidation(
+    Liquidation liquidation, {
+    bool synced = true,
+  }) async {
+    final db = await database;
+    return await db.update(
+      'liquidations',
+      {
+        'date_liquidation': liquidation.dateLiquidation
+            .toIso8601String()
+            .split('T')
+            .first,
+        'total_liquidation': liquidation.totalLiquidation,
+        'deductible': liquidation.deductible,
+        'tip': liquidation.tip,
+        'worker_id': liquidation.worker.idWorker,
+        'synced': synced ? 1 : 0,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [liquidation.id],
+    );
+  }
+
+  // Update Liquidation ID (for sync)
+  Future<void> updateLiquidationId(int oldId, int newId) async {
+    final db = await database;
+    await db.rawUpdate('UPDATE liquidations SET id = ? WHERE id = ?', [
+      newId,
+      oldId,
+    ]);
+  }
+
+  Future<int> deleteLiquidation(int id) async {
+    final db = await database;
+    return await db.delete('liquidations', where: 'id = ?', whereArgs: [id]);
   }
 
   // PENDING OPERATIONS

@@ -70,12 +70,12 @@ class _WorkersScreenState extends State<WorkersScreen> {
 
     if (confirmed == true) {
       final response = await _controller.deleteWorker(worker.idWorker);
-      
+
       if (mounted) {
         if (response.success) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Trabajador eliminado')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Trabajador eliminado')));
           _loadWorkers();
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -104,14 +104,25 @@ class _WorkersScreenState extends State<WorkersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const CustomAppBar(
-        title: 'Trabajadores',
-        showBackButton: false,
-      ),
+      appBar: const CustomAppBar(title: 'Trabajadores', showBackButton: false),
       body: _buildBody(),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _navigateToForm(),
-        child: const Icon(Icons.add),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: 'btnLiquidation',
+            onPressed: () =>
+                Navigator.pushNamed(context, AppRoutes.liquidations),
+            backgroundColor: AppTheme.successColor,
+            child: const Icon(Icons.attach_money),
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
+            heroTag: 'btnAddWorker',
+            onPressed: () => _navigateToForm(),
+            child: const Icon(Icons.add),
+          ),
+        ],
       ),
     );
   }
@@ -122,10 +133,7 @@ class _WorkersScreenState extends State<WorkersScreen> {
     }
 
     if (_errorMessage != null) {
-      return ErrorDisplayWidget(
-        message: _errorMessage!,
-        onRetry: _loadWorkers,
-      );
+      return ErrorDisplayWidget(message: _errorMessage!, onRetry: _loadWorkers);
     }
 
     if (_workers.isEmpty) {

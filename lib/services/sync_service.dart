@@ -7,6 +7,7 @@ import '../services/api_endpoints.dart';
 import '../models/worker_model.dart';
 import '../models/washing_service_model.dart';
 import '../models/type_washing_service_model.dart';
+import '../models/liquidation_model.dart';
 
 class SyncService {
   static final SyncService _instance = SyncService._internal();
@@ -149,6 +150,12 @@ class SyncService {
           return await _syncServiceOperation(operationType, entityId, payload);
         case 'type':
           return await _syncTypeOperation(operationType, entityId, payload);
+        case 'liquidation':
+          return await _syncLiquidationOperation(
+            operationType,
+            entityId,
+            payload,
+          );
         default:
           return false;
       }
@@ -382,6 +389,85 @@ class SyncService {
       }
     } catch (e) {
       print('SyncService: Error in type sync: $e');
+      return false;
+    }
+  }
+
+  Future<bool> _syncLiquidationOperation(
+    String operationType,
+    int? entityId,
+    String? payload,
+  ) async {
+    try {
+      switch (operationType) {
+        case 'CREATE':
+          Liquidation? liquidation;
+          // Try to fetch fresh data from DB if entityId is available
+          if (entityId != null) {
+            liquidation = await _dbService.getLiquidationById(entityId);
+            if (liquidation == null) {
+              print(
+                'SyncService: Liquidation $entityId not found in DB, skipping',
+              );
+              return true; // Assume deleted
+            }
+          } else if (payload != null) {
+            liquidation = Liquidation.fromJson(jsonDecode(payload));
+          } else {
+            return false;
+          }
+
+          final response = await _apiService.post<Liquidation>(
+            ApiEndpoints.liquidations,
+            liquidation.toJson(),
+            (json) => Liquidation.fromJson(json),
+          );
+
+          if (response.success && response.data != null) {
+            // If server returned a different ID, update local DB
+            if (response.data!.id != liquidation.id) {
+              print(
+                'SyncService: Updating liquidation ID from ${liquidation.id} to ${response.data!.id}',
+              );
+              await _dbService.updateLiquidationId(
+                liquidation.id,
+                response.data!.id,
+              );
+            }
+
+            await _dbService.updateLiquidation(response.data!, synced: true);
+            return true;
+          }
+          return false;
+
+        case 'UPDATE':
+          if (payload == null || entityId == null) return false;
+          final liquidation = Liquidation.fromJson(jsonDecode(payload));
+          final response = await _apiService.put<Liquidation>(
+            ApiEndpoints.liquidationById(entityId.toString()),
+            liquidation.toJson(),
+            (json) => Liquidation.fromJson(json),
+          );
+
+          if (response.success) {
+            await _dbService.updateLiquidation(liquidation, synced: true);
+            return true;
+          }
+          return false;
+
+        case 'DELETE':
+          if (entityId == null) return false;
+          final response = await _apiService.delete<Liquidation>(
+            ApiEndpoints.liquidationById(entityId.toString()),
+            (json) => Liquidation.fromJson(json),
+          );
+          return response.success;
+
+        default:
+          return false;
+      }
+    } catch (e) {
+      print('SyncService: Error in liquidation sync: $e');
       return false;
     }
   }

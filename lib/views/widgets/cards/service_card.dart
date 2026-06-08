@@ -19,8 +19,11 @@ class ServiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 0);
-    final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
+    final currencyFormat = NumberFormat.currency(
+      symbol: '\$',
+      decimalDigits: 0,
+    );
+    final dateFormat = DateFormat('dd/MM/yyyy');
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -49,7 +52,7 @@ class ServiceCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  
+
                   // Service info
                   Expanded(
                     child: Column(
@@ -83,7 +86,7 @@ class ServiceCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  
+
                   // Actions
                   if (onEdit != null || onDelete != null)
                     PopupMenuButton<String>(
@@ -113,7 +116,10 @@ class ServiceCard extends StatelessWidget {
                               children: [
                                 Icon(Icons.delete, size: 20, color: Colors.red),
                                 SizedBox(width: 8),
-                                Text('Eliminar', style: TextStyle(color: Colors.red)),
+                                Text(
+                                  'Eliminar',
+                                  style: TextStyle(color: Colors.red),
+                                ),
                               ],
                             ),
                           ),
@@ -124,7 +130,7 @@ class ServiceCard extends StatelessWidget {
               const SizedBox(height: 12),
               const Divider(),
               const SizedBox(height: 8),
-              
+
               // Worker and price info
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -147,7 +153,10 @@ class ServiceCard extends StatelessWidget {
                     ],
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: AppTheme.successColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(20),

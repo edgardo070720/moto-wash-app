@@ -14,13 +14,13 @@ class ServiceRepository {
   // Get all services with pagination
   Future<ApiResponse<WashingService>> getServices({
     int page = 1,
-    int limit = 10,
+    int limit = 50,
   }) async {
     if (_connectivityService.isOnline) {
       final response = await _apiService.getList<WashingService>(
         ApiEndpoints.services,
         (json) => WashingService.fromJson(json),
-        queryParams: {'page': page, 'limit': limit},
+        queryParams: {'page': page, 'size': limit},
       );
 
       if (response.success && response.dataList != null) {
@@ -58,7 +58,7 @@ class ServiceRepository {
     int? workerId,
     int? typeId,
     int page = 1,
-    int limit = 10,
+    int limit = 50,
   }) async {
     if (_connectivityService.isOnline) {
       final Map<String, dynamic> body = {
@@ -71,7 +71,7 @@ class ServiceRepository {
         ApiEndpoints.filterServices,
         body,
         (json) => WashingService.fromJson(json),
-        queryParams: {'page': page, 'limit': limit},
+        queryParams: {'page': page, 'size': limit},
       );
 
       return response;
