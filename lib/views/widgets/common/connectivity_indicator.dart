@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../services/connectivity_service.dart';
 import '../../../theme/app_theme.dart';
@@ -12,6 +13,7 @@ class ConnectivityIndicator extends StatefulWidget {
 class _ConnectivityIndicatorState extends State<ConnectivityIndicator> {
   final ConnectivityService _connectivityService = ConnectivityService();
   bool _isOnline = true;
+  StreamSubscription<bool>? _subscription;
 
   @override
   void initState() {
@@ -19,7 +21,7 @@ class _ConnectivityIndicatorState extends State<ConnectivityIndicator> {
     _isOnline = _connectivityService.isOnline;
 
     // Listen to connectivity changes
-    _connectivityService.connectivityStream.listen((isOnline) {
+    _subscription = _connectivityService.connectivityStream.listen((isOnline) {
       if (mounted) {
         setState(() {
           _isOnline = isOnline;
@@ -57,6 +59,12 @@ class _ConnectivityIndicatorState extends State<ConnectivityIndicator> {
         }
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
   }
 
   @override

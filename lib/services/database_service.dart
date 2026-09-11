@@ -32,7 +32,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: _onConfigure,
@@ -51,6 +51,7 @@ class DatabaseService {
         id_worker INTEGER PRIMARY KEY,
         nickname TEXT NOT NULL,
         price_worker REAL NOT NULL,
+        state INTEGER DEFAULT 1,
         synced INTEGER DEFAULT 1,
         updated_at TEXT
       )
@@ -151,6 +152,12 @@ class DatabaseService {
         'ALTER TABLE liquidations ADD COLUMN tip REAL DEFAULT 0.0',
       );
     }
+    if (oldVersion < 4) {
+      // Add state column to workers table for version 4
+      await db.execute(
+        'ALTER TABLE workers ADD COLUMN state INTEGER DEFAULT 1',
+      );
+    }
   }
 
   // WORKERS CRUD
@@ -160,6 +167,7 @@ class DatabaseService {
       'id_worker': worker.idWorker,
       'nickname': worker.nickname,
       'price_worker': worker.priceWorker,
+      'state': worker.state ? 1 : 0,
       'synced': synced ? 1 : 0,
       'updated_at': DateTime.now().toIso8601String(),
     }, conflictAlgorithm: ConflictAlgorithm.replace);
@@ -173,8 +181,8 @@ class DatabaseService {
       return Worker(
         idWorker: maps[i]['id_worker'] as int,
         nickname: maps[i]['nickname'] as String,
-        priceWorker: maps[i]['price_worker'] as double,
-        state: maps[i]['state'] as bool,
+        priceWorker: (maps[i]['price_worker'] as num).toDouble(),
+        state: (maps[i]['state'] ?? 1) == 1,
       );
     });
   }
@@ -192,8 +200,8 @@ class DatabaseService {
     return Worker(
       idWorker: maps[0]['id_worker'] as int,
       nickname: maps[0]['nickname'] as String,
-      priceWorker: maps[0]['price_worker'] as double,
-      state: maps[0]['state'] as bool,
+      priceWorker: (maps[0]['price_worker'] as num).toDouble(),
+      state: (maps[0]['state'] ?? 1) == 1,
     );
   }
 
@@ -204,6 +212,7 @@ class DatabaseService {
       {
         'nickname': worker.nickname,
         'price_worker': worker.priceWorker,
+        'state': worker.state ? 1 : 0,
         'synced': synced ? 1 : 0,
         'updated_at': DateTime.now().toIso8601String(),
       },
@@ -342,6 +351,7 @@ class DatabaseService {
         w.id_worker,
         w.nickname,
         w.price_worker,
+        w.state,
         t.id as type_id,
         t.detail,
         t.price_service
@@ -360,13 +370,13 @@ class DatabaseService {
         worker: Worker(
           idWorker: maps[i]['id_worker'] as int,
           nickname: maps[i]['nickname'] as String,
-          priceWorker: maps[i]['price_worker'] as double,
-          state: maps[i]['state'] as bool,
+          priceWorker: (maps[i]['price_worker'] as num).toDouble(),
+          state: (maps[i]['state'] ?? 1) == 1,
         ),
         typeService: TypeWashingService(
           id: maps[i]['type_id'] as int,
           detail: maps[i]['detail'] as String,
-          priceService: maps[i]['price_service'] as double,
+          priceService: (maps[i]['price_service'] as num).toDouble(),
         ),
       );
     });
@@ -382,6 +392,7 @@ class DatabaseService {
         w.id_worker,
         w.nickname,
         w.price_worker,
+        w.state,
         t.id as type_id,
         t.detail,
         t.price_service
@@ -401,13 +412,13 @@ class DatabaseService {
       worker: Worker(
         idWorker: maps[0]['id_worker'] as int,
         nickname: maps[0]['nickname'] as String,
-        priceWorker: maps[0]['price_worker'] as double,
-        state: maps[0]['state'],
+        priceWorker: (maps[0]['price_worker'] as num).toDouble(),
+        state: (maps[0]['state'] ?? 1) == 1,
       ),
       typeService: TypeWashingService(
         id: maps[0]['type_id'] as int,
         detail: maps[0]['detail'] as String,
-        priceService: maps[0]['price_service'] as double,
+        priceService: (maps[0]['price_service'] as num).toDouble(),
       ),
     );
   }
@@ -481,7 +492,8 @@ class DatabaseService {
         l.tip,
         w.id_worker,
         w.nickname,
-        w.price_worker
+        w.price_worker,
+        w.state
       FROM liquidations l
       INNER JOIN workers w ON l.worker_id = w.id_worker
       ORDER BY l.date_liquidation DESC
@@ -491,14 +503,14 @@ class DatabaseService {
       return Liquidation(
         id: maps[i]['id'] as int,
         dateLiquidation: DateTime.parse(maps[i]['date_liquidation'] as String),
-        totalLiquidation: maps[i]['total_liquidation'] as double,
-        deductible: maps[i]['deductible'] as double,
-        tip: (maps[i]['tip'] ?? 0.0) as double,
+        totalLiquidation: (maps[i]['total_liquidation'] as num).toDouble(),
+        deductible: (maps[i]['deductible'] as num).toDouble(),
+        tip: ((maps[i]['tip'] ?? 0.0) as num).toDouble(),
         worker: Worker(
           idWorker: maps[i]['id_worker'] as int,
           nickname: maps[i]['nickname'] as String,
-          priceWorker: maps[i]['price_worker'] as double,
-          state: maps[i]['state'] as bool,
+          priceWorker: (maps[i]['price_worker'] as num).toDouble(),
+          state: (maps[i]['state'] ?? 1) == 1,
         ),
       );
     });
@@ -516,7 +528,8 @@ class DatabaseService {
         l.tip,
         w.id_worker,
         w.nickname,
-        w.price_worker
+        w.price_worker,
+        w.state
       FROM liquidations l
       INNER JOIN workers w ON l.worker_id = w.id_worker
       WHERE l.worker_id = ?
@@ -529,14 +542,14 @@ class DatabaseService {
       return Liquidation(
         id: maps[i]['id'] as int,
         dateLiquidation: DateTime.parse(maps[i]['date_liquidation'] as String),
-        totalLiquidation: maps[i]['total_liquidation'] as double,
-        deductible: maps[i]['deductible'] as double,
-        tip: (maps[i]['tip'] ?? 0.0) as double,
+        totalLiquidation: (maps[i]['total_liquidation'] as num).toDouble(),
+        deductible: (maps[i]['deductible'] as num).toDouble(),
+        tip: ((maps[i]['tip'] ?? 0.0) as num).toDouble(),
         worker: Worker(
           idWorker: maps[i]['id_worker'] as int,
           nickname: maps[i]['nickname'] as String,
-          priceWorker: maps[i]['price_worker'] as double,
-          state: maps[i]['state'] as bool,
+          priceWorker: (maps[i]['price_worker'] as num).toDouble(),
+          state: (maps[i]['state'] ?? 1) == 1,
         ),
       );
     });
@@ -554,7 +567,8 @@ class DatabaseService {
         l.tip,
         w.id_worker,
         w.nickname,
-        w.price_worker
+        w.price_worker,
+        w.state
       FROM liquidations l
       INNER JOIN workers w ON l.worker_id = w.id_worker
       WHERE l.id = ?
@@ -567,14 +581,14 @@ class DatabaseService {
     return Liquidation(
       id: maps[0]['id'] as int,
       dateLiquidation: DateTime.parse(maps[0]['date_liquidation'] as String),
-      totalLiquidation: maps[0]['total_liquidation'] as double,
-      deductible: maps[0]['deductible'] as double,
-      tip: (maps[0]['tip'] ?? 0.0) as double,
+      totalLiquidation: (maps[0]['total_liquidation'] as num).toDouble(),
+      deductible: (maps[0]['deductible'] as num).toDouble(),
+      tip: ((maps[0]['tip'] ?? 0.0) as num).toDouble(),
       worker: Worker(
         idWorker: maps[0]['id_worker'] as int,
         nickname: maps[0]['nickname'] as String,
-        priceWorker: maps[0]['price_worker'] as double,
-        state: maps[0]['state'] as bool,
+        priceWorker: (maps[0]['price_worker'] as num).toDouble(),
+        state: (maps[0]['state'] ?? 1) == 1,
       ),
     );
   }
@@ -672,9 +686,56 @@ class DatabaseService {
       SELECT 
         (SELECT COUNT(*) FROM workers WHERE synced = 0) +
         (SELECT COUNT(*) FROM type_washing_services WHERE synced = 0) +
-        (SELECT COUNT(*) FROM washing_services WHERE synced = 0) as total
+        (SELECT COUNT(*) FROM washing_services WHERE synced = 0) +
+        (SELECT COUNT(*) FROM liquidations WHERE synced = 0) as total
     ''');
     return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  // DASHBOARD STATS (OFFLINE)
+  Future<Map<String, dynamic>> getDashboardStats(DateTime date) async {
+    final db = await database;
+    final formattedDate =
+        "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+
+    final List<Map<String, dynamic>> maps = await db.rawQuery('''
+      SELECT 
+        ws.id_service,
+        ws.date_service,
+        w.price_worker,
+        t.detail as type_name,
+        t.price_service
+      FROM washing_services ws
+      INNER JOIN workers w ON ws.worker_id = w.id_worker
+      INNER JOIN type_washing_services t ON ws.type_service_id = t.id
+      WHERE ws.date_service LIKE ?
+    ''', ['$formattedDate%']);
+
+    int totalServices = maps.length;
+    double totalRevenue = 0.0;
+    final Map<String, int> typeCounts = {};
+
+    for (var row in maps) {
+      final workerPrice = (row['price_worker'] as num?)?.toDouble() ?? 0.0;
+      final servicePrice = (row['price_service'] as num?)?.toDouble() ?? 0.0;
+      totalRevenue += (workerPrice + servicePrice);
+
+      final typeName = row['type_name'] as String? ?? 'Desconocido';
+      typeCounts[typeName] = (typeCounts[typeName] ?? 0) + 1;
+    }
+
+    final serviceTypeStats = typeCounts.entries.map((entry) {
+      return {
+        'name': entry.key,
+        'count': entry.value,
+      };
+    }).toList();
+
+    return {
+      'totalServices': totalServices,
+      'totalRevenue': totalRevenue,
+      'serviceTypeStats': serviceTypeStats,
+    };
   }
 
   Future<void> close() async {
